@@ -12,16 +12,18 @@ module Lark
     attr_reader :ssl_context, :http
 
     def initialize(skip_verify_ssl = true)
-      @http = HTTP.timeout(**Lark.http_timeout_options)
-      @ssl_context = OpenSSL::SSL::SSLContext.new
-      #@ssl_context.ssl_version = :TLSv1_2
-      @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE if skip_verify_ssl
+      ssl_context = OpenSSL::SSL::SSLContext.new
+      ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE if skip_verify_ssl
+      # @http = HTTP::Client.new(**Lark.http_timeout_options)
+      # @ssl_context.ssl_version = :TLSv1_2
+      @http = HTTP::Client.new(ssl_context: ssl_context)
     end
 
     def get(path, get_header = {})
       request(path, get_header) do |url, header|
         params = header.delete(:params)
-        http.headers(header).get(url, params: params, ssl_context: ssl_context)
+        # http.headers(header).get(url, params: params, ssl_context: ssl_context)
+        http.get(url, params: params, headers: header)
       end
     end
 
@@ -29,7 +31,8 @@ module Lark
       request(path, delete_header) do |url, header|
         Lark.logger.info "payload: #{delete_body}"
         params = header.delete(:params)
-        http.headers(header).delete(url, params: params, json: delete_body, ssl_context: ssl_context)
+        # http.headers(header).delete(url, params: params, json: delete_body, ssl_context: ssl_context)
+        http.delete(url, params: params, json: delete_body, headers: header)
       end
     end
 
@@ -37,17 +40,23 @@ module Lark
       request(path, post_header) do |url, header|
         Lark.logger.info "payload: #{post_body}"
         params = header.delete(:params)
-        http.headers(header).post(url, params: params, json: post_body, ssl_context: ssl_context)
+        # http.headers(header).post(url, params: params, json: post_body, ssl_context: ssl_context)
+        http.post(url, params: params, json: post_body, headers: header)
       end
     end
 
     def post_form(path, form_data, post_header = {})
       request(path, post_header) do |url, header|
         header.delete(:params)
-        http.headers(header).post(
+        # http.headers(header).post(
+        #   url,
+        #   form: HTTP::FormData::Multipart.new(form_data),
+        #   ssl_context: ssl_context
+        # )
+        http.post(
           url,
           form: HTTP::FormData::Multipart.new(form_data),
-          ssl_context: ssl_context
+          headers: header
         )
       end
     end
@@ -56,7 +65,8 @@ module Lark
       request(path, put_header) do |url, header|
         Lark.logger.info "payload: #{put_body}"
         params = header.delete(:params)
-        http.headers(header).put(url, params: params, json: put_body, ssl_context: ssl_context)
+        # http.headers(header).put(url, params: params, json: put_body, ssl_context: ssl_context)
+        http.put(url, params: params, json: put_body, headers: header)
       end
     end
 
@@ -74,15 +84,33 @@ module Lark
         Lark.logger.info "[#{request_uuid}] request url(#{url}) with headers: #{header}, attempts: #{attempts}"
         response = yield(url, header)
         Lark.logger.info "[#{request_uuid}] response headers: #{response.headers.inspect}"
-        if response.status.success?
+        if response.status.ok?
           handle_response(response, as || :json)
-        elsif response.status.server_error?
+        elsif response.status.internal_server_error?
           raise Lark::ServerErrorException
         else
           Lark.logger.error "[#{request_uuid}] request #{url} happen error: #{response.body}"
           raise ResponseError.new(response.status, response.body)
         end
       end
+    end
+
+    def with_retries(options, &block)
+      times = 0
+      ret = nil
+      begin
+        ret = block.call
+      rescue Exception => e
+        Lark.logger.info "Error: #{e.backtrace}"
+        times += 1
+        if options[:rescue].find { |x| e.is_a?(x) } && times < options[:max_tries]
+         sleep options[:base_sleep_seconds]
+         retry
+        else
+          raise e
+        end
+      end
+      ret
     end
 
     def handle_response(response, as)
