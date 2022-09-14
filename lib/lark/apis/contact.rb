@@ -43,7 +43,7 @@ module Lark
       end
 
       def department_user_list(department_id:, offset: nil, page_token: nil, page_size:, fetch_child: false)
-        get 'contact/v1/department/user/list', params: {
+        get 'contact/v3/users/find_by_department', params: {
           department_id: department_id,
           offset: offset, # deprecation
           page_token: page_token,
@@ -52,13 +52,11 @@ module Lark
         }.compact
       end
 
-      def department_user_detail_list(department_id:, offset: nil, page_token: nil, page_size:, fetch_child: false)
+      def department_user_detail_list(department_id:, page_token: nil, page_size:)
         get 'contact/v1/department/user/detail/list', params: {
           department_id: department_id,
-          offset: offset, # deprecation
           page_token: page_token,
           page_size: page_size,
-          fetch_child: fetch_child
         }.compact
       end
 
