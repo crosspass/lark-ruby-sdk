@@ -31,6 +31,7 @@ module Lark
     api_mount :docx
     api_mount :'v2/block'
     api_mount :trust_party
+    api_mount :bitable
 
     attr_reader :app_id, :app_secret, :tenant_key, :isv, :options
 
