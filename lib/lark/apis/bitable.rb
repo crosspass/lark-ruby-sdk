@@ -2,7 +2,7 @@ module Lark
   module Apis
     module Bitable
       def update(app_token, table_id, record_id, user_id_type, fields)
-        put "bitable/v1/apps/#{app_token}/tables/#{table_id}/records/#{record_id}", {
+        put "bitable/v1/apps/#{app_token}/tables/#{table_id}/records/#{record_id}?user_id_type=#{user_id_type}", {
           fields: fields
         }
       end
